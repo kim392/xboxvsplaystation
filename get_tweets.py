@@ -10,6 +10,7 @@ from collections import deque
 import MySQLdb
 import time
 import warnings
+from datetime import timedelta
 warnings.filterwarnings('ignore', category=MySQLdb.Warning)
 class RateLimit:
     def __init__(self, allowed_requests, seconds):
@@ -32,6 +33,7 @@ class RateLimit:
 
 
 from twitter import *
+from twitter import api
 con_secret='WbpxprmtVdhc4ha2Rx9jx5P6W'
 con_secret_key='gbMLFzBVWw0EIThAnbiPOdhDgjZOHGJgfIX9hxDfY37TbMxsDX'
 token='2707762099-ykCIl3covDcvNsjt2MRl2oFf1VGNU9IfT7zAreW'
@@ -64,57 +66,39 @@ connection = MySQLdb.Connection(host='localhost', user='root', passwd='password'
 cursor = connection.cursor(MySQLdb.cursors.DictCursor)
 from datetime import datetime
 sql = """insert into twitter (text, polarity, date, type) values ("%(text)s", %(polarity)s, %(date)s, %(type)s);"""
+requests = 0
+start = datetime.now()
 while(True):
-    while(not can_make_request([limit])):
-        pass
+    print requests
+    if(requests >= 180):
+        time.sleep(float((start + timedelta(minutes=15, seconds=1) - datetime.now()).total_seconds()))
+        requests = 0
+        start = datetime.now()
     if(toggle_xbox):
         q= " OR ".join(xbox_hashtags)
     else:
         q= " OR ".join(playstation_hashtags)
     toggle_xbox = not toggle_xbox
-    #print q
-    tweets = t.search.tweets(q=q, count=100, max_id=max_id, since_id=since_id)
-    max_id = max_id - id_diff
-    since_id = max_id - id_diff
-    print len(tweets['statuses'])
-    for status in tweets['statuses']:
-        #print status['text']
-        polarity = TextBlob(status['text']).sentiment.polarity
-        #print polarity
-        #if(polarity > .25): 
-        #    print "Positive"
-        #elif(polarity < -.25): 
-        #    print "Negative"
-        #else:
-        #    print "Neutral"
-        ##print "\n"
-        row = {}
-        if(toggle_xbox):
-            row['type'] = 'xbox'
-        else:
-            row['type'] = 'playstation'
-        row['text'] = status['text']
-        row['polarity'] = polarity
-        d = datetime.strptime(status['created_at'],'%a %b %d %H:%M:%S +0000 %Y');
-        row['date'] = d.strftime('%Y-%m-%d');
-        #print row['date']
-        #print sql % row
-        cursor.execute(sql, row)
-        connection.commit()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    try:
+        tweets = t.search.tweets(q=q, count=100, max_id=max_id, since_id=since_id)
+        max_id = max_id - id_diff
+        since_id = max_id - id_diff
+        for status in tweets['statuses']:
+            polarity = TextBlob(status['text']).sentiment.polarity
+            row = {}
+            if(toggle_xbox):
+                row['type'] = 'xbox'
+            else:
+                row['type'] = 'playstation'
+            row['text'] = status['text']
+            row['polarity'] = polarity
+            d = datetime.strptime(status['created_at'],'%a %b %d %H:%M:%S +0000 %Y');
+            row['date'] = d.strftime('%Y-%m-%d');
+            cursor.execute(sql, row)
+            connection.commit()
+        requests += 1
+    except api.TwitterHTTPError as e:
+        print "Rate limit exceeded"
+        requests = 180
+        pass
 
