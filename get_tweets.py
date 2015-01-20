@@ -9,6 +9,8 @@ from textblob import TextBlob
 from collections import deque
 import MySQLdb
 import time
+import warnings
+warnings.filterwarnings('ignore', category=MySQLdb.Warning)
 class RateLimit:
     def __init__(self, allowed_requests, seconds):
         self.allowed_requests = allowed_requests
@@ -51,7 +53,7 @@ def can_make_request(limits):
 
 toggle_xbox = True
 
-id_diff = 5000000000000
+id_diff = 1000000000000
 
 max_id = 557346367329554432 
 since_id = max_id - id_diff
@@ -61,7 +63,7 @@ since_id = max_id - id_diff
 connection = MySQLdb.Connection(host='localhost', user='root', passwd='password', db='twitter',use_unicode=True,charset='UTF8')
 cursor = connection.cursor(MySQLdb.cursors.DictCursor)
 from datetime import datetime
-sql = """insert into twitter (text, polarity, date) values ("%(text)s", %(polarity)s, %(date)s);"""
+sql = """insert into twitter (text, polarity, date, type) values ("%(text)s", %(polarity)s, %(date)s, %(type)s);"""
 while(True):
     while(not can_make_request([limit])):
         pass
@@ -87,6 +89,10 @@ while(True):
         #    print "Neutral"
         ##print "\n"
         row = {}
+        if(toggle_xbox):
+            row['type'] = 'xbox'
+        else:
+            row['type'] = 'playstation'
         row['text'] = status['text']
         row['polarity'] = polarity
         d = datetime.strptime(status['created_at'],'%a %b %d %H:%M:%S +0000 %Y');
